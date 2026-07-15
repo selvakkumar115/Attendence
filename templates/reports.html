@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - Attendance Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Attendance Reports</h5>
+            </div>
+            <div class="card-body">
+                <form method="GET" class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label for="start_date" class="form-label">Start Date</label>
+                        <input type="date" class="form-control" name="start_date" id="start_date" 
+                               value="{{ start_date }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="end_date" class="form-label">End Date</label>
+                        <input type="date" class="form-control" name="end_date" id="end_date" 
+                               value="{{ end_date }}" required>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="fas fa-search"></i> Generate Report
+                        </button>
+                        <button type="button" class="btn btn-success" onclick="exportToCSV()">
+                            <i class="fas fa-download"></i> Export CSV
+                        </button>
+                    </div>
+                </form>
+
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Report Period:</strong> {{ start_date }} to {{ end_date }}
+                    ({{ total_days }} days)
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if report_data %}
+<!-- Summary Statistics -->
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body text-center">
+                <h4>{{ report_data|length }}</h4>
+                <p class="mb-0">Total Students</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body text-center">
+                <h4 id="avgAttendance">0%</h4>
+                <p class="mb-0">Average Attendance</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body text-center">
+                <h4 id="lowAttendanceCount">0</h4>
+                <p class="mb-0">Below 75%</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body text-center">
+                <h4 id="perfectAttendance">0</h4>
+                <p class="mb-0">Perfect Attendance</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Report Table -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6><i class="fas fa-table"></i> Detailed Attendance Report</h6>
+                <div>
+                    <input type="text" id="searchReport" class="form-control form-control-sm" 
+                           placeholder="Search students..." style="width: 200px;">
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="reportTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Roll Number</th>
+                                <th>Student Name</th>
+                                <th>Days Present</th>
+                                <th>Total Days</th>
+                                <th>Attendance %</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for data in report_data %}
+                            <tr>
+                                <td><span class="badge bg-primary">{{ data.student.roll_number }}</span></td>
+                                <td>{{ data.student.name }}</td>
+                                <td><span class="badge bg-success">{{ data.present_days }}</span></td>
+                                <td>{{ data.total_days }}</td>
+                                <td>
+                                    <span class="fw-bold
+                                        {% if data.percentage >= 90 %}text-success
+                                        {% elif data.percentage >= 75 %}text-warning
+                                        {% else %}text-danger{% endif %}">
+                                        {{ data.percentage }}%
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if data.percentage >= 90 %}
+                                        <span class="badge bg-success">Excellent</span>
+                                    {% elif data.percentage >= 75 %}
+                                        <span class="badge bg-warning">Good</span>
+                                    {% elif data.percentage >= 60 %}
+                                        <span class="badge bg-orange">Average</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Poor</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance Distribution Chart -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-chart-pie"></i> Attendance Distribution</h6>
+            </div>
+            <div class="card-body">
+                <canvas id="attendanceChart" width="400" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-exclamation-triangle"></i> Students Needing Attention</h6>
+            </div>
+            <div class="card-body">
+                <div id="lowAttendanceList">
+                    {% set low_attendance_students = report_data | selectattr('percentage', 'lt', 75) | list %}
+                    {% if low_attendance_students %}
+                        {% for data in low_attendance_students %}
+                        <div class="alert alert-warning">
+                            <strong>{{ data.student.name }}</strong> ({{ data.student.roll_number }})<br>
+                            <small>{{ data.percentage }}% attendance - {{ data.present_days }}/{{ data.total_days }} days</small>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i>
+                            All students have good attendance (≥75%)!
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="alert alert-info text-center">
+            <i class="fas fa-info-circle"></i>
+            No attendance data found for the selected date range.
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Include Chart.js for visualization -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// Calculate and display summary statistics
+document.addEventListener('DOMContentLoaded', function() {
+    {% if report_data %}
+    const reportData = {{ report_data | tojson }};
+
+    // Calculate statistics
+    let totalPercentage = 0;
+    let lowAttendanceCount = 0;
+    let perfectAttendanceCount = 0;
+
+    reportData.forEach(data => {
+        totalPercentage += data.percentage;
+        if (data.percentage < 75) lowAttendanceCount++;
+        if (data.percentage === 100) perfectAttendanceCount++;
+    });
+
+    const avgAttendance = reportData.length > 0 ? (totalPercentage / reportData.length).toFixed(1) : 0;
+
+    // Update summary cards
+    document.getElementById('avgAttendance').textContent = avgAttendance + '%';
+    document.getElementById('lowAttendanceCount').textContent = lowAttendanceCount;
+    document.getElementById('perfectAttendance').textContent = perfectAttendanceCount;
+
+    // Create attendance distribution chart
+    const ctx = document.getElementById('attendanceChart').getContext('2d');
+
+    // Calculate distribution
+    const excellent = reportData.filter(d => d.percentage >= 90).length;
+    const good = reportData.filter(d => d.percentage >= 75 && d.percentage < 90).length;
+    const average = reportData.filter(d => d.percentage >= 60 && d.percentage < 75).length;
+    const poor = reportData.filter(d => d.percentage < 60).length;
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Excellent (90%+)', 'Good (75-89%)', 'Average (60-74%)', 'Poor (<60%)'],
+            datasets: [{
+                data: [excellent, good, average, poor],
+                backgroundColor: [
+                    '#28a745',
+                    '#ffc107',
+                    '#fd7e14',
+                    '#dc3545'
+                ],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+    {% endif %}
+});
+
+// Search functionality
+document.getElementById('searchReport').addEventListener('keyup', function() {
+    const searchTerm = this.value.toLowerCase();
+    const tableRows = document.querySelectorAll('#reportTable tbody tr');
+
+    tableRows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+});
+
+// Export to CSV
+function exportToCSV() {
+    {% if report_data %}
+    const csvData = [
+        ['Roll Number', 'Student Name', 'Days Present', 'Total Days', 'Attendance %', 'Status']
+    ];
+
+    const reportData = {{ report_data | tojson }};
+    reportData.forEach(data => {
+        let status = 'Poor';
+        if (data.percentage >= 90) status = 'Excellent';
+        else if (data.percentage >= 75) status = 'Good';
+        else if (data.percentage >= 60) status = 'Average';
+
+        csvData.push([
+            data.student.roll_number,
+            data.student.name,
+            data.present_days,
+            data.total_days,
+            data.percentage + '%',
+            status
+        ]);
+    });
+
+    const csvContent = csvData.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance_report_{{ start_date }}_to_{{ end_date }}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    {% else %}
+    alert('No data to export');
+    {% endif %}
+}
+
+// Set date range presets
+function setDateRange(days) {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - days);
+
+    document.getElementById('start_date').value = startDate.toISOString().split('T')[0];
+    document.getElementById('end_date').value = endDate.toISOString().split('T')[0];
+}
+
+// Add quick date range buttons
+document.addEventListener('DOMContentLoaded', function() {
+    const dateRangeButtons = `
+        <div class="btn-group btn-group-sm mt-2" role="group" aria-label="Date range presets">
+            <button type="button" class="btn btn-outline-secondary" onclick="setDateRange(7)">Last 7 days</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="setDateRange(30)">Last 30 days</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="setDateRange(90)">Last 3 months</button>
+        </div>
+    `;
+
+    document.querySelector('.col-md-4.d-flex').insertAdjacentHTML('beforeend', dateRangeButtons);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+
+{% block title %}Mark Attendance - Attendance Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-check-circle"></i> Mark Attendance</h5>
+            </div>
+            <div class="card-body">
+                <form id="attendanceForm">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="attendanceDate" class="form-label">Date</label>
+                            <input type="date" class="form-control" id="attendanceDate" value="{{ today_date }}" required>
+                        </div>
+                        <div class="col-md-8 d-flex align-items-end">
+                            <button type="button" class="btn btn-success me-2" onclick="markAllPresent()">
+                                <i class="fas fa-check-double"></i> Mark All Present
+                            </button>
+                            <button type="button" class="btn btn-warning me-2" onclick="markAllAbsent()">
+                                <i class="fas fa-times-circle"></i> Mark All Absent
+                            </button>
+                            <button type="button" class="btn btn-info" onclick="clearAll()">
+                                <i class="fas fa-undo"></i> Clear All
+                            </button>
+                        </div>
+                    </div>
+
+                    {% if students %}
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <input type="text" id="searchStudent" class="form-control" placeholder="Search students...">
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="filterStatus" id="filterAll" value="all" checked>
+                                <label class="form-check-label" for="filterAll">All</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="filterStatus" id="filterPresent" value="Present">
+                                <label class="form-check-label" for="filterPresent">Present</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="filterStatus" id="filterAbsent" value="Absent">
+                                <label class="form-check-label" for="filterAbsent">Absent</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="attendanceTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Roll Number</th>
+                                    <th>Student Name</th>
+                                    <th>Status</th>
+                                    <th>Quick Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in students %}
+                                <tr data-student-id="{{ student.id }}">
+                                    <td><span class="badge bg-primary">{{ student.roll_number }}</span></td>
+                                    <td>{{ student.name }}</td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="attendance_{{ student.id }}" 
+                                                   id="present_{{ student.id }}" value="Present"
+                                                   {% if existing_attendance.get(student.id) == 'Present' %}checked{% endif %}>
+                                            <label class="btn btn-outline-success" for="present_{{ student.id }}">
+                                                <i class="fas fa-check"></i> Present
+                                            </label>
+
+                                            <input type="radio" class="btn-check" name="attendance_{{ student.id }}" 
+                                                   id="absent_{{ student.id }}" value="Absent"
+                                                   {% if existing_attendance.get(student.id) == 'Absent' %}checked{% endif %}>
+                                            <label class="btn btn-outline-danger" for="absent_{{ student.id }}">
+                                                <i class="fas fa-times"></i> Absent
+                                            </label>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-success" onclick="markStudent({{ student.id }}, 'Present')">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-danger" onclick="markStudent({{ student.id }}, 'Absent')">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="text-center mt-3">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-save"></i> Save Attendance
+                        </button>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning text-center">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        No students registered yet. Please <a href="{{ url_for('register_student') }}">register students</a> first.
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Card -->
+{% if students %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-chart-pie"></i> Attendance Summary</h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h4 id="totalStudents" class="text-primary">{{ students|length }}</h4>
+                        <small>Total Students</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 id="presentCount" class="text-success">0</h4>
+                        <small>Present</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 id="absentCount" class="text-danger">0</h4>
+                        <small>Absent</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 id="unmarkedCount" class="text-warning">{{ students|length }}</h4>
+                        <small>Unmarked</small>
+                    </div>
+                </div>
+                <div class="progress mt-2">
+                    <div id="progressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+// Update summary counts
+function updateSummary() {
+    const totalStudents = document.querySelectorAll('input[name^="attendance_"]').length / 2;
+    let presentCount = 0;
+    let absentCount = 0;
+
+    for (let i = 1; i <= totalStudents; i++) {
+        const presentRadio = document.querySelector(`input[name="attendance_${i}"][value="Present"]`);
+        const absentRadio = document.querySelector(`input[name="attendance_${i}"][value="Absent"]`);
+
+        if (presentRadio && presentRadio.checked) presentCount++;
+        if (absentRadio && absentRadio.checked) absentCount++;
+    }
+
+    const unmarkedCount = totalStudents - presentCount - absentCount;
+    const percentage = totalStudents > 0 ? ((presentCount + absentCount) / totalStudents) * 100 : 0;
+
+    document.getElementById('presentCount').textContent = presentCount;
+    document.getElementById('absentCount').textContent = absentCount;
+    document.getElementById('unmarkedCount').textContent = unmarkedCount;
+    document.getElementById('progressBar').style.width = percentage + '%';
+}
+
+// Mark individual student
+function markStudent(studentId, status) {
+    document.querySelector(`input[name="attendance_${studentId}"][value="${status}"]`).checked = true;
+    updateSummary();
+}
+
+// Mark all present
+function markAllPresent() {
+    document.querySelectorAll('input[value="Present"]').forEach(radio => {
+        radio.checked = true;
+    });
+    updateSummary();
+}
+
+// Mark all absent
+function markAllAbsent() {
+    document.querySelectorAll('input[value="Absent"]').forEach(radio => {
+        radio.checked = true;
+    });
+    updateSummary();
+}
+
+// Clear all selections
+function clearAll() {
+    document.querySelectorAll('input[name^="attendance_"]').forEach(radio => {
+        radio.checked = false;
+    });
+    updateSummary();
+}
+
+// Search functionality
+document.getElementById('searchStudent').addEventListener('keyup', function() {
+    const searchTerm = this.value.toLowerCase();
+    const tableRows = document.querySelectorAll('#attendanceTable tbody tr');
+
+    tableRows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+});
+
+// Filter by status
+document.querySelectorAll('input[name="filterStatus"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        const filterValue = this.value;
+        const tableRows = document.querySelectorAll('#attendanceTable tbody tr');
+
+        tableRows.forEach(row => {
+            if (filterValue === 'all') {
+                row.style.display = '';
+            } else {
+                const studentId = row.getAttribute('data-student-id');
+                const statusRadio = document.querySelector(`input[name="attendance_${studentId}"][value="${filterValue}"]`);
+                row.style.display = statusRadio && statusRadio.checked ? '' : 'none';
+            }
+        });
+    });
+});
+
+// Form submission
+document.getElementById('attendanceForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const date = document.getElementById('attendanceDate').value;
+    const attendanceData = {};
+
+    // Collect attendance data
+    document.querySelectorAll('input[name^="attendance_"]:checked').forEach(radio => {
+        const studentId = radio.name.split('_')[1];
+        attendanceData[studentId] = radio.value;
+    });
+
+    // Send data to server
+    fetch('/attendance', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            date: date,
+            attendance: attendanceData
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error saving attendance');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error saving attendance');
+    });
+});
+
+// Initialize summary on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateSummary();
+
+    // Add event listeners to all radio buttons
+    document.querySelectorAll('input[name^="attendance_"]').forEach(radio => {
+        radio.addEventListener('change', updateSummary);
+    });
+});
+</script>
+{% endblock %}

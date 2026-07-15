@@ -16,6 +16,7 @@ def create_tables():
     db.create_all()
 
 @app.route('/')
+@app.route('/')
 def index():
     """Home page showing dashboard with recent stats"""
     total_students = Student.query.count()
@@ -24,10 +25,13 @@ def index():
     # Get recent registrations
     recent_students = Student.query.order_by(Student.id.desc()).limit(5).all()
 
-    return render_template('index.html', 
-                         total_students=total_students,
-                         today_attendance=today_attendance,
-                         recent_students=recent_students)
+    return render_template(
+        'index.html',
+        total_students=total_students,
+        today_attendance=today_attendance,
+        recent_students=recent_students,
+        today_date=date.today().strftime("%b %d")
+    )
 
 @app.route('/register', methods=['GET', 'POST'])
 def register_student():

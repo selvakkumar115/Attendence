@@ -196,7 +196,7 @@
 // Calculate and display summary statistics
 document.addEventListener('DOMContentLoaded', function() {
     {% if report_data %}
-    const reportData = {{ report_data | tojson }};
+    const reportData = [];
 
     // Calculate statistics
     let totalPercentage = 0;
